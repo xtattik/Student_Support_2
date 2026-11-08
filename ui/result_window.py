@@ -1,0 +1,143 @@
+import queue
+import threading
+import customtkinter as ctk
+
+import llm_engine
+from theme import TEAL, TEAL_HOVER, SKY_BLUE, WHITE, set_window_icon
+
+ACTION_LABELS = {
+    "explain":   "Explanation",
+    "summarise": "Summary",
+}
+
+_DONE = object()
+
+
+class ResultWindow:
+    """Streams a reply into a text box.
+
+    Generation runs on a worker thread and pushes text into a queue; the Tk
+    thread drains the queue on a timer. (Touching Tk widgets from a worker
+    thread is unsafe and can crash, especially on macOS.)
+    Closing the window cancels generation so the CPU stops working.
+    """
+
+    def __init__(self, action: str, system_prompt: str, source_text: str,
+                 simplify_prompt: str = "", trimmed: bool = False):
+        self._action = action
+        self._system_prompt = system_prompt
+        self._source_text = source_text
+        self._simplify_prompt = simplify_prompt
+        self._trimmed = trimmed
+        self._win: ctk.CTkToplevel | None = None
+        self._simplify_btn = None
+        self._q: queue.Queue = queue.Queue()
+        self._cancel = threading.Event()
+        self._first_chunk = True
+
+    def show(self) -> None:
+        title = ACTION_LABELS.get(self._action, "Result")
+        self._win = ctk.CTkToplevel()
+        self._win.title(title)
+        self._win.geometry("620x460")
+        self._win.attributes("-topmost", True)
+        self._win.resizable(True, True)
+        self._win.protocol("WM_DELETE_WINDOW", self._close)
+        self._win.after(200, lambda: set_window_icon(self._win))
+
+        header = ctk.CTkFrame(self._win, fg_color=TEAL, height=44, corner_radius=0)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        ctk.CTkLabel(header, text=title, font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color=WHITE).pack(side="left", padx=16, pady=10)
+
+        self._textbox = ctk.CTkTextbox(self._win, wrap="word", font=ctk.CTkFont(size=13))
+        self._textbox.pack(fill="both", expand=True, padx=16, pady=(12, 4))
+
+        self._note = ctk.CTkLabel(self._win, text="", text_color="gray")
+        self._note.pack()
+
+        btn_frame = ctk.CTkFrame(self._win, fg_color="transparent")
+        btn_frame.pack(pady=(4, 16))
+        ctk.CTkButton(btn_frame, text="Close", fg_color=TEAL, hover_color=TEAL_HOVER,
+                      text_color=WHITE, command=self._close).pack(side="left", padx=8)
+
+        if self._action == "explain" and self._simplify_prompt:
+            self._simplify_btn = ctk.CTkButton(btn_frame, text="Simpler please",
+                                               fg_color=SKY_BLUE, hover_color=TEAL,
+                                               text_color=WHITE, command=self._simplify)
+            self._simplify_btn.pack(side="left", padx=8)
+
+        self._start(self._system_prompt)
+        self._poll()
+
+    # ── Generation ───────────────────────────────────────────────────────────
+
+    def _start(self, prompt: str) -> None:
+        self._cancel = threading.Event()
+        self._first_chunk = True
+        self._set_placeholder("Thinking…" if llm_engine.is_ready()
+                              else "Starting the AI — please wait a moment…")
+        if self._simplify_btn:
+            self._simplify_btn.configure(state="disabled")
+        cancel = self._cancel
+        threading.Thread(target=self._worker, args=(prompt, cancel), daemon=True).start()
+
+    def _worker(self, prompt: str, cancel: threading.Event) -> None:
+        try:
+            for chunk in llm_engine.complete(prompt, self._source_text, cancel=cancel):
+                self._q.put((cancel, chunk))
+        except Exception as e:
+            self._q.put((cancel, f"\n\n[Error: {e}]"))
+        finally:
+            self._q.put((cancel, _DONE))
+
+    def _poll(self) -> None:
+        if self._win is None:
+            return
+        try:
+            while True:
+                cancel, item = self._q.get_nowait()
+                if cancel is not self._cancel:
+                    continue  # leftovers from a cancelled run
+                if item is _DONE:
+                    self._finish()
+                else:
+                    self._append(item)
+        except queue.Empty:
+            pass
+        self._win.after(40, self._poll)
+
+    def _set_placeholder(self, text: str) -> None:
+        self._textbox.configure(state="normal")
+        self._textbox.delete("1.0", "end")
+        self._textbox.insert("end", text)
+        self._textbox.configure(state="disabled", text_color="gray")
+
+    def _append(self, chunk: str) -> None:
+        self._textbox.configure(state="normal")
+        if self._first_chunk:
+            self._textbox.delete("1.0", "end")
+            self._textbox.configure(text_color=("gray10", "gray90"))
+            self._first_chunk = False
+            chunk = chunk.lstrip()
+        self._textbox.insert("end", chunk)
+        self._textbox.see("end")
+        self._textbox.configure(state="disabled")
+
+    def _finish(self) -> None:
+        if self._trimmed:
+            self._note.configure(text="Your selection was long, so only the first part was used.")
+        if self._simplify_btn:
+            self._simplify_btn.configure(state="normal", text="Simpler please")
+
+    def _simplify(self) -> None:
+        self._cancel.set()
+        self._simplify_btn.configure(text="Simplifying…")
+        self._start(self._simplify_prompt)
+
+    def _close(self) -> None:
+        self._cancel.set()
+        if self._win is not None:
+            self._win.destroy()
+            self._win = None

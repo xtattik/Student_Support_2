@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Models — too large for git
+models/
+
+# llamafile binaries (no longer used)
+bin/*.exe
+bin/llamafile
+
+# PyInstaller output
+dist/
+build/
+# *.spec intentionally NOT ignored — student_ai.spec is tracked
+
+# Config with local paths
+config.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
