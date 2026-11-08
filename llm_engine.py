@@ -320,6 +320,9 @@ def _post(payload: dict, stream: bool) -> requests.Response:
         except ValueError:
             msg = r.text
         raise EngineError(f"AI engine error: {msg[:300]}")
+    # The streaming response has no charset header, so requests would assume
+    # Latin-1 and turn "•" into "â€¢". llama-server always sends UTF-8.
+    r.encoding = "utf-8"
     return r
 
 

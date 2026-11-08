@@ -1,8 +1,10 @@
 import queue
+import sys
 import threading
 import customtkinter as ctk
 
 import llm_engine
+import markdown_lite
 from theme import TEAL, TEAL_HOVER, SKY_BLUE, WHITE, set_window_icon
 
 ACTION_LABELS = {
@@ -51,8 +53,10 @@ class ResultWindow:
         ctk.CTkLabel(header, text=title, font=ctk.CTkFont(size=15, weight="bold"),
                      text_color=WHITE).pack(side="left", padx=16, pady=10)
 
-        self._textbox = ctk.CTkTextbox(self._win, wrap="word", font=ctk.CTkFont(size=13))
+        self._textbox = ctk.CTkTextbox(self._win, wrap="word", font=ctk.CTkFont(size=13),
+                                       spacing2=2, spacing3=4)
         self._textbox.pack(fill="both", expand=True, padx=16, pady=(12, 4))
+        self._setup_tags()
 
         self._note = ctk.CTkLabel(self._win, text="", text_color="gray")
         self._note.pack()
@@ -108,20 +112,104 @@ class ResultWindow:
             pass
         self._win.after(40, self._poll)
 
+    # ── Formatting ───────────────────────────────────────────────────────────
+
+    def _setup_tags(self) -> None:
+        """Styles for the Markdown subset in markdown_lite (bold, headings, bullets…).
+        Tag fonts go on the inner tk.Text, since CTkTextbox forbids tag fonts."""
+        tb = self._textbox
+        inner = tb._textbox
+
+        def font(size=13, **kw):
+            f = ctk.CTkFont(size=size, **kw)
+            try:
+                return tb._apply_font_scaling(f)   # match CTk's DPI scaling
+            except Exception:
+                return f
+
+        def px(n):
+            try:
+                return tb._apply_widget_scaling(n)
+            except Exception:
+                return n
+
+        self._fonts = {
+            "bold": font(weight="bold"),
+            "italic": font(slant="italic"),
+            "bolditalic": font(weight="bold", slant="italic"),
+            "heading": font(size=15, weight="bold"),
+            "code": ("Consolas", 13) if sys.platform == "win32" else ("Menlo", 13),
+        }
+        inner.tag_configure("heading", font=self._fonts["heading"], spacing1=px(6), spacing3=px(4))
+        # Wrapped bullet lines line up with the text, not the "•"
+        try:
+            import tkinter.font as tkfont
+            hang = tkfont.Font(font=inner.cget("font")).measure("•  ")
+        except Exception:
+            hang = px(18)
+        inner.tag_configure("bullet", lmargin1=px(6), lmargin2=px(6) + hang)
+        inner.tag_configure("bullet2", lmargin1=px(26), lmargin2=px(26) + hang)
+        inner.tag_configure("bold", font=self._fonts["bold"])
+        inner.tag_configure("italic", font=self._fonts["italic"])
+        inner.tag_configure("bolditalic", font=self._fonts["bolditalic"])
+        inner.tag_configure("code", font=self._fonts["code"])
+        inner.tag_raise("bold")
+        inner.tag_raise("italic")
+        inner.tag_raise("bolditalic")
+
+    @staticmethod
+    def _tk_tags(tags: tuple) -> tuple:
+        if "bold" in tags and "italic" in tags:
+            tags = tuple(t for t in tags if t not in ("bold", "italic")) + ("bolditalic",)
+        return tags
+
+    def _insert_segments(self, segments) -> None:
+        inner = self._textbox._textbox
+        for text, tags in segments:
+            inner.insert("end", text, self._tk_tags(tags))
+
     def _set_placeholder(self, text: str) -> None:
+        self._raw = ""
+        self._done_upto = 0       # chars of _raw already rendered as complete lines
+        self._blank_run = 0
         self._textbox.configure(state="normal")
         self._textbox.delete("1.0", "end")
         self._textbox.insert("end", text)
         self._textbox.configure(state="disabled", text_color="gray")
 
     def _append(self, chunk: str) -> None:
+        """Complete lines are formatted once; the line still streaming in is
+        re-rendered on each update so formatting appears as soon as it closes."""
+        inner = self._textbox._textbox
         self._textbox.configure(state="normal")
         if self._first_chunk:
             self._textbox.delete("1.0", "end")
             self._textbox.configure(text_color=("gray10", "gray90"))
             self._first_chunk = False
             chunk = chunk.lstrip()
-        self._textbox.insert("end", chunk)
+            inner.mark_set("live", "1.0")
+            inner.mark_gravity("live", "left")
+        self._raw += chunk
+
+        # "end-1c", not "end": deleting through Tk's final newline makes it
+        # delete the previous line break instead, joining lines together.
+        inner.delete("live", "end-1c")
+        pending = self._raw[self._done_upto:]
+        nl = pending.rfind("\n")
+        if nl >= 0:
+            for line in pending[:nl].split("\n"):
+                segs = markdown_lite.parse_line(line)
+                if not segs and not line.strip():
+                    self._blank_run += 1
+                    if self._blank_run > 1:
+                        continue
+                else:
+                    self._blank_run = 0
+                self._insert_segments(segs + [("\n", ())])
+            self._done_upto += nl + 1
+            inner.mark_set("live", "end-1c")
+        self._insert_segments(markdown_lite.parse_line(self._raw[self._done_upto:]))
+
         self._textbox.see("end")
         self._textbox.configure(state="disabled")
 

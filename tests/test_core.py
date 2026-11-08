@@ -86,3 +86,42 @@ def test_existing_models_are_listed():
     assert not is_model_file("mmproj-gemma-4-E4B-it-Q8_0.gguf")
     assert not is_model_file("mtp-gemma-4-E4B-it-Q4_0.gguf")
     assert not is_model_file("Qwen3.5-2B-Q4_K_M.gguf.part")
+
+
+def test_markdown_lite():
+    from markdown_lite import parse, parse_line, to_plain
+    assert parse_line("Plain **bold** and *it* `x`") == [
+        ("Plain ", ()), ("bold", ("bold",)), (" and ", ()), ("it", ("italic",)), (" ", ()), ("x", ("code",))]
+    assert parse_line("- **Marx** said") == [("•  ", ("bullet",)), ("Marx", ("bullet", "bold")), (" said", ("bullet",))]
+    assert parse_line("• already a bullet")[0] == ("•  ", ("bullet",))
+    assert parse_line("  * nested")[0] == ("•  ", ("bullet2",))
+    assert parse_line("2. second")[0] == ("2.  ", ("bullet",))
+    assert parse_line("## Heading") == [("Heading", ("heading",))]
+    assert parse_line("---") == []
+    # half-streamed bold markers are hidden, not shown raw
+    assert parse_line("The **Bourg") == [("The Bourg", ())]
+    # maths / multiplication stars are left alone
+    assert to_plain("2 * 3 * 4") == "2 * 3 * 4"
+    assert to_plain("**A** is *b*") == "A is b"
+    # blank-line runs collapse
+    assert "".join(t for t, _ in parse("a\n\n\n\nb")) == "a\n\nb"
+
+
+def test_quiz_strips_markdown():
+    q = clean_quiz({"questions": [_q(question="What is **mitosis**?",
+                                      options=("**A** cell", "b", "c", "d"))]})
+    assert q[0]["question"] == "What is mitosis?" and q[0]["options"]["A"] == "A cell"
+
+
+def test_stream_decodes_utf8():
+    import io
+    import requests
+    r = requests.models.Response()
+    r.status_code = 200
+    body = 'data: {"choices":[{"delta":{"content":"• Marx"}}]}\n\ndata: [DONE]\n\n'
+    r.raw = io.BytesIO(body.encode("utf-8"))
+    r.headers["Content-Type"] = "text/event-stream"
+    assert requests.utils.get_encoding_from_headers(r.headers) in (None, "ISO-8859-1")
+    r.encoding = "utf-8"   # what llm_engine._post now does
+    lines = [llm_engine.parse_sse_line(x) for x in r.iter_lines(decode_unicode=True) if x]
+    assert lines[0] == "• Marx"

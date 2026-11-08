@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+from markdown_lite import to_plain
+
 LETTERS = "ABCD"
 _PREFIX = re.compile(r"^\s*(?:[A-Da-d][\).:]\s+|\([A-Da-d]\)\s+)")
 
@@ -13,10 +15,10 @@ def clean_quiz(data: dict) -> list[dict]:
     out = []
     for q in (data or {}).get("questions", []):
         try:
-            question = str(q["question"]).strip()
-            opts = [str(o).strip() for o in q["options"]][:4]
+            question = to_plain(str(q["question"]))
+            opts = [to_plain(str(o)) for o in q["options"]][:4]
             answer = str(q["answer"]).strip().upper()[:1]
-            explanation = str(q.get("explanation", "")).strip()
+            explanation = to_plain(str(q.get("explanation", "")))
         except (KeyError, TypeError):
             continue
         # Some models repeat the letter inside the option ("A) Paris")
