@@ -18,6 +18,15 @@ Press **Ctrl+Shift+`** after highlighting any text — in a document, a webpage,
 
 **Junior mode** (tray menu or Settings) switches to simpler language for ages 9–10.
 
+### Maths
+
+Highlight a maths problem or worked example and choose **Explain this** — the AI works through it step by step. Equations are drawn the way they look in a textbook (proper fractions, square roots, powers), one step per line.
+
+- **Click an equation** to copy it as a picture, then paste it into OneNote, Word, Google Docs etc.
+- **Right-click an equation** to copy it as text instead (e.g. `x = (8 ± 4)/4`).
+
+> Small AI models can make arithmetic slips in long working. The **Stronger** model (Settings) is more reliable for senior maths. Maths copied from PDFs can lose its formatting (x² may arrive as x2) — check the question looks right.
+
 ### What's new in version 2
 
 - **Faster answers** — uses llama.cpp's official engine, which uses all of your processor's speed-ups and, where available, the laptop's graphics chip.

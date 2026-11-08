@@ -1,10 +1,16 @@
+import base64
 import queue
 import sys
 import threading
-import customtkinter as ctk
+import tkinter as tk
 
+import customtkinter as ctk
+import pyperclip
+
+import clipboard_image
 import llm_engine
 import markdown_lite
+import mathfmt
 from theme import TEAL, TEAL_HOVER, SKY_BLUE, WHITE, set_window_icon
 
 ACTION_LABELS = {
@@ -38,6 +44,7 @@ class ResultWindow:
         self._first_chunk = True
 
     def show(self) -> None:
+        mathfmt.preload()  # load the equation renderer while the AI warms up
         title = ACTION_LABELS.get(self._action, "Result")
         self._win = ctk.CTkToplevel()
         self._win.title(title)
@@ -156,6 +163,12 @@ class ResultWindow:
         inner.tag_raise("bold")
         inner.tag_raise("italic")
         inner.tag_raise("bolditalic")
+        # Equations on their own line: centred, with breathing room, like a textbook
+        inner.tag_configure("eqline", justify="center", spacing1=px(4), spacing3=px(6))
+        try:
+            self._scale = tb._get_widget_scaling()
+        except Exception:
+            self._scale = 1.0
 
     @staticmethod
     def _tk_tags(tags: tuple) -> tuple:
@@ -166,12 +179,77 @@ class ResultWindow:
     def _insert_segments(self, segments) -> None:
         inner = self._textbox._textbox
         for text, tags in segments:
-            inner.insert("end", text, self._tk_tags(tags))
+            if "display" in tags:
+                self._insert_equation(text)
+            else:
+                inner.insert("end", text, self._tk_tags(tags))
+
+    # ── Equations ────────────────────────────────────────────────────────────
+
+    def _insert_equation(self, latex: str) -> None:
+        """Typeset each line of a display equation as a picture (Unicode if it can't
+        be drawn). Click = copy as picture, right-click = copy as text."""
+        inner = self._textbox._textbox
+        dark = ctk.get_appearance_mode() == "Dark"
+        colour = "#E5E5E5" if dark else "#1A1A1A"
+        lines = mathfmt.display_lines(latex) or [latex]
+        for n, line in enumerate(lines):
+            if n:
+                inner.insert("end", "\n")
+            start = inner.index("end-1c")
+            png = mathfmt.render_png(line, color=colour, dpi=round(72 * self._scale), fontsize=19)
+            if png:
+                img = tk.PhotoImage(data=base64.b64encode(png).decode("ascii"))
+                self._images.append(img)  # Tk doesn't keep its own reference
+                inner.image_create("end", image=img, align="center")
+            else:
+                inner.insert("end", mathfmt.latex_to_unicode(line))
+            self._eq_count += 1
+            tag = f"eq{self._eq_count}"
+            inner.tag_add("eqline", start, "end-1c")
+            inner.tag_add(tag, start, "end-1c")
+            inner.tag_bind(tag, "<Button-1>", lambda _e, s=line: self._copy_equation(s))
+            for btn in ("<Button-3>", "<Button-2>"):   # right-click (Windows / Mac)
+                inner.tag_bind(tag, btn, lambda _e, s=line: self._copy_equation(s, as_text=True))
+            inner.tag_bind(tag, "<Enter>", lambda _e: inner.configure(cursor="hand2"))
+            inner.tag_bind(tag, "<Leave>", lambda _e: inner.configure(cursor="xterm"))
+
+    def _copy_equation(self, latex: str, as_text: bool = False) -> None:
+        copied = None
+        if not as_text:
+            png = mathfmt.render_png(latex, color="#000000", dpi=200, fontsize=16,
+                                     background="#FFFFFF")
+            if png and clipboard_image.copy_png(png):
+                copied = "as a picture"
+        if copied is None:
+            try:
+                pyperclip.copy(mathfmt.latex_to_unicode(latex))
+                copied = "as text"
+            except Exception:
+                pass
+        self._flash(f"Equation copied {copied} — paste it into your notes." if copied
+                    else "Sorry, couldn't copy that equation.")
+
+    def _flash(self, msg: str) -> None:
+        self._note.configure(text=msg, text_color=TEAL)
+
+        def _restore():
+            if self._win is not None:
+                self._note.configure(text=self._tip_text(), text_color="gray")
+        self._win.after(3000, _restore)
+
+    def _tip_text(self) -> str:
+        if self._eq_count:
+            return "Tip: click an equation to copy it as a picture (right-click copies it as text)."
+        return ""
 
     def _set_placeholder(self, text: str) -> None:
         self._raw = ""
         self._done_upto = 0       # chars of _raw already rendered as complete lines
         self._blank_run = 0
+        self._fmt = markdown_lite.LineFormatter()
+        self._images: list = []
+        self._eq_count = 0
         self._textbox.configure(state="normal")
         self._textbox.delete("1.0", "end")
         self._textbox.insert("end", text)
@@ -198,7 +276,9 @@ class ResultWindow:
         nl = pending.rfind("\n")
         if nl >= 0:
             for line in pending[:nl].split("\n"):
-                segs = markdown_lite.parse_line(line)
+                segs = self._fmt.feed(line)
+                if segs is None:
+                    continue          # inside a multi-line $$ block
                 if not segs and not line.strip():
                     self._blank_run += 1
                     if self._blank_run > 1:
@@ -208,14 +288,23 @@ class ResultWindow:
                 self._insert_segments(segs + [("\n", ())])
             self._done_upto += nl + 1
             inner.mark_set("live", "end-1c")
-        self._insert_segments(markdown_lite.parse_line(self._raw[self._done_upto:]))
+        self._insert_segments(self._fmt.preview(self._raw[self._done_upto:]))
 
         self._textbox.see("end")
         self._textbox.configure(state="disabled")
 
     def _finish(self) -> None:
+        if not self._first_chunk:
+            self._append("\n")            # commit the last line
+            tail = self._fmt.flush()      # and any unclosed $$ block
+            if tail:
+                self._textbox.configure(state="normal")
+                self._insert_segments(tail)
+                self._textbox.configure(state="disabled")
+        notes = [self._tip_text()]
         if self._trimmed:
-            self._note.configure(text="Your selection was long, so only the first part was used.")
+            notes.insert(0, "Your selection was long, so only the first part was used.")
+        self._note.configure(text="\n".join(n for n in notes if n), text_color="gray")
         if self._simplify_btn:
             self._simplify_btn.configure(state="normal", text="Simpler please")
 

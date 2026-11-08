@@ -125,3 +125,43 @@ def test_stream_decodes_utf8():
     r.encoding = "utf-8"   # what llm_engine._post now does
     lines = [llm_engine.parse_sse_line(x) for x in r.iter_lines(decode_unicode=True) if x]
     assert lines[0] == "• Marx"
+
+
+def test_latex_to_unicode():
+    from mathfmt import latex_to_unicode as u
+    assert u(r"x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}") == "x = (−b ± √(b² − 4ac))/(2a)"
+    assert u(r"\frac{3}{4}") == "3/4"
+    assert u(r"2x^2 - 8x + 6 = 0") == "2x² − 8x + 6 = 0"
+    assert u(r"90^\circ") == "90°"
+    assert u(r"x_1 + x_2") == "x₁ + x₂"
+    assert u(r"\theta = \tan^{-1}\left(\frac{3}{4}\right)") == "θ = tan⁻¹(3/4)"
+    assert u(r"v = 12\,\text{m/s}") == "v = 12 m/s"
+    assert u(r"\sqrt[3]{27} = 3") == "∛27 = 3"
+    assert u(r"\boxed{x = 3}") == "x = 3"
+
+
+def test_display_lines_split_aligned_blocks():
+    from mathfmt import display_lines
+    block = r"\begin{aligned} 2x + 3 &= 11 \\ 2x &= 8 \\ x &= 4 \end{aligned}"
+    assert display_lines(block) == ["2x + 3 = 11", "2x = 8", "x = 4"]
+
+
+def test_markdown_maths():
+    from markdown_lite import LineFormatter, parse_line, to_plain
+    # inline maths becomes Unicode, tagged so it isn't mistaken for markdown
+    segs = parse_line(r"Here $a = 2$ and **$x^2$** matter")
+    assert ("a = 2", ("math",)) in segs and ("x²", ("bold", "math")) in segs
+    # prices are not maths
+    assert to_plain("It costs $5 and $10 today") == "It costs $5 and $10 today"
+    # a line that is only an equation becomes a display segment
+    assert parse_line(r"$$x = \frac{8 \pm 4}{4}$$") == [(r"x = \frac{8 \pm 4}{4}", ("display",))]
+    assert parse_line(r"\[ y = mx + c \]") == [("y = mx + c", ("display",))]
+    # multi-line $$ blocks are collected, one step per line
+    f = LineFormatter()
+    assert f.feed("$$") is None and f.feed("2x = 8") is None
+    assert f.feed("x = 4") is None
+    assert f.feed("$$") == [(r"2x = 8 \\ x = 4", ("display",))]
+    # half-streamed display maths is hidden rather than shown raw
+    assert f.preview(r"$$x = \frac{8") == []
+    # quiz/plain text gets readable symbols
+    assert to_plain(r"Solve $x^2 = 9$") == "Solve x² = 9"

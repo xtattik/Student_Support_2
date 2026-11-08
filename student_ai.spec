@@ -24,10 +24,23 @@ a = Analysis(
         "pystray._win32" if IS_WINDOWS else "pystray._darwin",
         "PIL._tkinter_finder",
     ],
-    excludes=["numpy", "pandas", "matplotlib", "scipy", "IPython", "pytest"],
+    # matplotlib is used only for drawing equations: keep the Agg renderer, drop GUI backends
+    excludes=["pandas", "scipy", "IPython", "pytest",
+              "matplotlib.backends.backend_qt", "matplotlib.backends.backend_qtagg",
+              "matplotlib.backends.backend_qtcairo", "matplotlib.backends.backend_wx",
+              "matplotlib.backends.backend_wxagg", "matplotlib.backends.backend_gtk3",
+              "matplotlib.backends.backend_gtk4", "matplotlib.backends.backend_webagg",
+              "matplotlib.backends.backend_nbagg", "PyQt5", "PyQt6", "PySide2", "PySide6", "wx"],
     hookspath=[],
     noarchive=False,
 )
+
+# PyInstaller scans the .exe/.dll files in bin/ and would also copy their
+# libraries into the app's root folder — a ~25 MB duplicate. llama-server only
+# needs them next to itself in bin/, so drop the extra copies.
+_BIN = Path("bin").resolve()
+a.binaries = [b for b in a.binaries
+              if not (Path(b[1]).resolve().parent == _BIN and not b[0].replace("\\", "/").startswith("bin/"))]
 
 pyz = PYZ(a.pure)
 

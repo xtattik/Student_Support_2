@@ -4,6 +4,7 @@ pyperclip>=1.8.2
 pystray>=0.19.4
 Pillow>=10.0.0
 requests>=2.31.0
+matplotlib>=3.8   # typesets maths equations (loaded only when needed)
 
 # The AI engine is llama.cpp's prebuilt llama-server (not a Python package).
 # Fetch it into ./bin with:  python scripts/fetch_llama_server.py

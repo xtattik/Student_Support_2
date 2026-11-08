@@ -40,6 +40,25 @@ Write exactly 3 multiple-choice questions using simple words and short sentences
 Each question has exactly 4 options and exactly one correct option, answerable from the text.
 For each question also give the letter of the correct option and one short, simple sentence explaining why."""
 
+# ── Maths (added to explain / summarise / simplify) ─────────────────────────
+# The app turns $...$ into readable symbols and draws each $$...$$ line as a
+# textbook-style equation picture.
+
+MATH_RULE = """
+
+If the text involves maths: write the maths in LaTeX. Use $...$ for small bits of maths inside a sentence,
+and put each equation or step of working on its own line as $$...$$ (one step per line).
+Work through it one step at a time, saying in words what each step does and why. Check your arithmetic."""
+
+MATH_RULE_JUNIOR = """
+
+If the text involves maths: write the maths in LaTeX. Use $...$ for small bits of maths inside a sentence,
+and put each step of working on its own line as $$...$$. Go one small step at a time and say what you did in simple words."""
+
+# Quiz answers are JSON, where LaTeX backslashes break easily — keep it to plain symbols
+QUIZ_MATH_RULE = """
+If there is maths, write it with plain symbols such as x², √, ×, ÷, ½ and π — not LaTeX."""
+
 # ── Quiz output shape (enforced by the engine, so parsing never fails) ───────
 
 QUIZ_SCHEMA = {
@@ -72,7 +91,9 @@ QUIZ_SCHEMA = {
 
 def get_prompts(junior: bool = False) -> dict:
     if junior:
-        return {"explain": EXPLAIN_JUNIOR, "summarise": SUMMARISE_JUNIOR,
-                "simplify": SIMPLIFY_JUNIOR, "test_me": QUIZ_JUNIOR}
-    return {"explain": EXPLAIN, "summarise": SUMMARISE,
-            "simplify": SIMPLIFY, "test_me": QUIZ}
+        m = MATH_RULE_JUNIOR
+        return {"explain": EXPLAIN_JUNIOR + m, "summarise": SUMMARISE_JUNIOR + m,
+                "simplify": SIMPLIFY_JUNIOR + m, "test_me": QUIZ_JUNIOR + QUIZ_MATH_RULE}
+    m = MATH_RULE
+    return {"explain": EXPLAIN + m, "summarise": SUMMARISE + m,
+            "simplify": SIMPLIFY + m, "test_me": QUIZ + QUIZ_MATH_RULE}

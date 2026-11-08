@@ -91,6 +91,8 @@ def main() -> int:
             f.unlink()
         elif n.startswith(("test-", "rpc-server", "ggml-rpc-server")):
             f.unlink()
+        elif n in ("llama.exe", "llama"):  # all-in-one CLI launcher, not needed
+            f.unlink()
 
     if not exe.exists():
         print(f"ERROR: {exe} not found after extraction")

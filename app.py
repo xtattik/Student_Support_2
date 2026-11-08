@@ -8,6 +8,7 @@ import customtkinter as ctk
 import config
 import hotkey_listener
 import llm_engine
+import mathfmt
 import single_instance
 from clipboard_handler import get_selected_text
 from config import get_hotkey_display, is_first_run, is_junior_mode
@@ -108,6 +109,9 @@ def _launch_app() -> None:
 
     if is_first_run():
         _root.after(1500, lambda: FirstRunWizard(_root).show())
+        # First launch only: build the equation renderer's font cache (~10 s) in the
+        # background now, so the first maths answer isn't slowed down by it.
+        _root.after(4000, mathfmt.preload)
 
     _root.mainloop()
 
