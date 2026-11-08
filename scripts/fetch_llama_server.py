@@ -84,10 +84,12 @@ def main() -> int:
     # Keep only what llama-server needs: drop the other CLI tools to save space
     for f in BIN.iterdir():
         n = f.name
-        is_lib = f.suffix.lower() in (".dll", ".so") or ".dylib" in n
-        if is_lib or n.startswith("llama-server"):
+        if n.startswith("llama-server"):
             continue
-        if n.startswith(("llama-", "test-", "rpc-server")):
+        # Other tools ship as llama-<tool>.exe plus a llama-<tool>-impl library
+        if n.startswith("llama-") and ("-impl." in n or "." not in n or n.endswith(".exe")):
+            f.unlink()
+        elif n.startswith(("test-", "rpc-server", "ggml-rpc-server")):
             f.unlink()
 
     if not exe.exists():
