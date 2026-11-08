@@ -71,3 +71,18 @@ def test_prompts_and_schema():
         assert set(p) == {"explain", "summarise", "simplify", "test_me"}
     q = QUIZ_SCHEMA["properties"]["questions"]
     assert q["minItems"] == q["maxItems"] == 3
+
+
+def test_existing_models_are_listed():
+    from model_manager import is_model_file
+    # v1 / user-supplied models still count
+    assert is_model_file("Qwen2.5-3B-Instruct-Q4_K_M.gguf")
+    assert is_model_file("Qwen2.5-7B-Instruct-Q4_K_M.gguf")
+    assert is_model_file("Some-Model.GGUF")
+    # split models: only part 1 is shown
+    assert is_model_file("big-model-Q4_K_M-00001-of-00003.gguf")
+    assert not is_model_file("big-model-Q4_K_M-00002-of-00003.gguf")
+    # helper files and partial downloads are hidden
+    assert not is_model_file("mmproj-gemma-4-E4B-it-Q8_0.gguf")
+    assert not is_model_file("mtp-gemma-4-E4B-it-Q4_0.gguf")
+    assert not is_model_file("Qwen3.5-2B-Q4_K_M.gguf.part")

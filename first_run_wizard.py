@@ -88,7 +88,7 @@ def delete_shortcut() -> None:
     try:
         ps = (
             '$shell = New-Object -ComObject WScript.Shell; '
-            '$lnk = Join-Path ($shell.SpecialFolders("Desktop")) "Student AI Support 2.lnk"; '
+            '$lnk = Join-Path ($shell.SpecialFolders("Desktop")) "Student AI Support.lnk"; '
             'if (Test-Path $lnk) { Remove-Item $lnk -Force }'
         )
         subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, creationflags=0x08000000)
@@ -115,7 +115,7 @@ def _shortcut_windows() -> None:
     # OneDrive has redirected it (Path.home()/Desktop is often wrong on school PCs)
     ps = (
         '$shell = New-Object -ComObject WScript.Shell; '
-        '$lnk = Join-Path ($shell.SpecialFolders("Desktop")) "Student AI Support 2.lnk"; '
+        '$lnk = Join-Path ($shell.SpecialFolders("Desktop")) "Student AI Support.lnk"; '
         f'$s = $shell.CreateShortcut($lnk); '
         f'$s.TargetPath = "{exe}"; '
         f'$s.WorkingDirectory = "{exe.parent}"; '
@@ -138,14 +138,14 @@ def get_startup_enabled() -> bool:
                                  r"Software\Microsoft\Windows\CurrentVersion\Run",
                                  0, winreg.KEY_READ)
             try:
-                winreg.QueryValueEx(key, "StudentAISupport2")
+                winreg.QueryValueEx(key, "StudentAISupport")
                 return True
             except FileNotFoundError:
                 return False
             finally:
                 winreg.CloseKey(key)
         elif platform.system() == "Darwin":
-            plist = Path.home() / "Library" / "LaunchAgents" / "com.mpac.studentai2.plist"
+            plist = Path.home() / "Library" / "LaunchAgents" / "com.mpac.studentai.plist"
             return plist.exists()
     except Exception:
         return False
@@ -175,11 +175,11 @@ def _startup_windows(enable: bool) -> None:
                          0, winreg.KEY_SET_VALUE)
     try:
         if enable:
-            winreg.SetValueEx(key, "StudentAISupport2", 0,
+            winreg.SetValueEx(key, "StudentAISupport", 0,
                               winreg.REG_SZ, str(Path(sys.executable)))
         else:
             try:
-                winreg.DeleteValue(key, "StudentAISupport2")
+                winreg.DeleteValue(key, "StudentAISupport")
             except FileNotFoundError:
                 pass
     finally:
@@ -188,7 +188,7 @@ def _startup_windows(enable: bool) -> None:
 
 def _startup_mac(enable: bool) -> None:
     plist_dir  = Path.home() / "Library" / "LaunchAgents"
-    plist_path = plist_dir / "com.mpac.studentai2.plist"
+    plist_path = plist_dir / "com.mpac.studentai.plist"
     exe        = str(Path(sys.executable))
     if enable:
         plist_dir.mkdir(parents=True, exist_ok=True)
@@ -197,7 +197,7 @@ def _startup_mac(enable: bool) -> None:
             f'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"'
             f' "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
             f'<plist version="1.0"><dict>\n'
-            f'  <key>Label</key><string>com.mpac.studentai2</string>\n'
+            f'  <key>Label</key><string>com.mpac.studentai</string>\n'
             f'  <key>ProgramArguments</key><array><string>{exe}</string></array>\n'
             f'  <key>RunAtLoad</key><true/>\n'
             f'  <key>KeepAlive</key><false/>\n'

@@ -49,5 +49,5 @@ if IS_MAC:
         coll,
         name="StudentAI.app",
         icon="assets/logo.png",
-        bundle_identifier="au.edu.marsdenparkac.studentai2",
+        bundle_identifier="au.edu.marsdenparkac.studentai",
     )

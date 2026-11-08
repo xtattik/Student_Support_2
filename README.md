@@ -2,7 +2,7 @@
 
 A private, local AI study tool. Highlight any text on your screen, press a keyboard shortcut, and get instant help — no internet required after setup, no accounts, and nothing leaves your device.
 
-> **Version 2** is a lighter, faster rebuild of [Student AI Support](https://github.com/xtattik/Student_AI_Support). It can be installed alongside version 1 — they use separate settings and model folders.
+> **Version 2** is a lighter, faster rebuild of [Student AI Support](https://github.com/xtattik/Student_AI_Support). It replaces version 1 and uses the same models folder, so models you already downloaded keep working.
 
 ---
 
@@ -36,7 +36,7 @@ Press **Ctrl+Shift+`** after highlighting any text — in a document, a webpage,
 3. Open the `StudentAI` folder and double-click **StudentAI.exe**
    > If you see *"Windows protected your PC"*, click **More info** → **Run anyway**. This appears because the app isn't signed with a paid certificate.
 4. **First time only:** choose **Standard** (recommended) or **Lite** (older laptops), then click **Start Download**.
-   > Default model location: `%LOCALAPPDATA%\StudentAI2\models\` (not synced by OneDrive)
+   > Default model location: `%LOCALAPPDATA%\StudentAI\models\` (not synced by OneDrive)
 5. A small icon appears in your system tray (near the clock). Highlight text → press **Ctrl+Shift+`** → choose an option.
 
 **To quit:** right-click the tray icon → **Quit**
@@ -47,7 +47,7 @@ Press **Ctrl+Shift+`** after highlighting any text — in a document, a webpage,
 2. **First time only:** right-click **StudentAI.app** → **Open** → **Open** (the app isn't signed with a paid Apple certificate)
 3. When asked, allow keyboard access: **Open System Settings** → find **Student AI Support** → toggle **on**
 4. Choose a model and click **Start Download**
-   > Default model location: `~/Library/Application Support/StudentAI2/models/`
+   > Default model location: `~/Library/Application Support/StudentAI/models/`
 5. Use it from the menu-bar icon (top-right). Highlight text → **Ctrl+Shift+`**
 
 ---
@@ -61,7 +61,20 @@ Press **Ctrl+Shift+`** after highlighting any text — in a document, a webpage,
 | **Stronger** — Qwen3.5 4B | ~2.7 GB | Laptops with 8 GB+ RAM |
 | **Gemma 4 E4B** | ~5.0 GB | Laptops with 16 GB RAM |
 
-Switch or download models in **Settings**. Any `.gguf` file in the models folder appears automatically.
+Switch or download models in **Settings**.
+
+### Using your own / existing models
+
+Any `.gguf` model file in the models folder shows up in **Settings → Active Model** — including the Qwen2.5 models from version 1, or anything else you've downloaded (e.g. a bigger model for a stronger PC). If you keep models somewhere else, point the app at that folder in **Settings → Advanced → Change folder…**.
+
+- Version 2's engine is newer than version 1's, so it runs everything v1 could, plus newer model families.
+- Split models (`…-00001-of-00003.gguf`) work — only part 1 is listed.
+- "Thinking" models (e.g. Qwen3) are told to answer directly, so they don't waste time reasoning.
+- If the chosen model isn't in the folder any more, the app uses another one it finds.
+
+### Upgrading from version 1
+
+Quit version 1 (tray icon → Quit), then extract version 2 over the top of your existing StudentAI folder (or replace StudentAI.app on Mac). Your models, hotkey, junior mode and launch-at-login setting are kept.
 
 ### Manual model download
 
@@ -84,7 +97,7 @@ Then launch the app — it will show **"✓ Model found"** and you can click Con
 
 **Answers are garbled, or the app crashes when answering** — Settings → Advanced → turn off **Use graphics chip when available**. (The app also does this automatically if the graphics chip fails to start.)
 
-**Logs** — `error.log` and `llama-server.log` are in the StudentAI2 data folder (one level above `models`).
+**Logs** — `error.log` and `llama-server.log` are in the StudentAI data folder (`%LOCALAPPDATA%\StudentAI` on Windows, `~/Library/Application Support/StudentAI` on Mac).
 
 ---
 

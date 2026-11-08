@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 from pathlib import Path
 from typing import Callable
@@ -16,9 +17,22 @@ class DownloadCancelled(Exception):
     pass
 
 
+_SPLIT_PART = re.compile(r"-(\d{5})-of-\d{5}\.gguf$", re.IGNORECASE)
+
+
+def is_model_file(name: str) -> bool:
+    """Any .gguf counts as a model, except helper files (vision projectors,
+    speculative-decoding heads) and parts 2+ of a split model — llama.cpp
+    loads the rest automatically from part 1."""
+    lower = name.lower()
+    if not lower.endswith(".gguf") or lower.startswith(("mmproj", "mtp-")):
+        return False
+    m = _SPLIT_PART.search(name)
+    return m is None or m.group(1) == "00001"
+
+
 def _is_model(p: Path) -> bool:
-    # Skip helper files (vision projectors, speculative-decoding heads)
-    return p.suffix == ".gguf" and not p.name.startswith(("mmproj", "mtp-"))
+    return is_model_file(p.name)
 
 
 def list_local_models() -> list[Path]:

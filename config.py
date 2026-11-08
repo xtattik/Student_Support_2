@@ -6,9 +6,9 @@ from pathlib import Path
 
 VERSION = "2.0.0"
 
-# Identifiers kept distinct from v1 so both versions can be installed side by side
-# (separate data folder, single-instance lock, startup entry and shortcut).
-APP_ID       = "StudentAI2"
+# Same data folder as v1 ("StudentAI"), so v2 upgrades in place and finds the
+# models students already downloaded.
+APP_ID       = "StudentAI"
 APP_NAME     = "Student AI Support"
 GITHUB_REPO  = "xtattik/Student_Support_2"
 HELP_URL     = f"https://github.com/{GITHUB_REPO}#readme"
@@ -97,13 +97,24 @@ _DEFAULT_HOTKEY = {"ctrl": True, "shift": True, "alt": False, "key": "`"}
 _cache: dict | None = None
 
 
+def _legacy_config_file() -> Path | None:
+    """v1 kept config.json next to the exe. If v2 was extracted over a v1
+    install, that file holds the student's hotkey, junior mode, chosen model
+    and any custom models folder."""
+    if not FROZEN:
+        return None
+    p = Path(sys.executable).parent / "config.json"
+    return p if p.exists() else None
+
+
 def load_config() -> dict:
     global _cache
     if _cache is None:
+        src = CONFIG_FILE if CONFIG_FILE.exists() else _legacy_config_file()
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(src, "r", encoding="utf-8") as f:
                 _cache = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (TypeError, OSError, json.JSONDecodeError):
             _cache = {}
     return dict(_cache)
 

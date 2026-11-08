@@ -39,7 +39,7 @@ class TrayIcon:
             icon_kwargs["darwin_nsapplication"] = AppKit.NSApplication.sharedApplication()
 
         self._icon = pystray.Icon(
-            "StudentAI2", img,
+            "StudentAI", img,
             f"{APP_NAME}\nHighlight text, then press {get_hotkey_display()}",
             menu, **icon_kwargs,
         )

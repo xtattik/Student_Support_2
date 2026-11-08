@@ -8,7 +8,7 @@ import socket
 
 # Arbitrary port unlikely to clash with anything else.
 # Only needs to be unique to this app on the local machine.
-_LOCK_PORT = 47_824  # v1 uses 47_823 — different so both can run
+_LOCK_PORT = 47_823  # same as v1, so v1 and v2 never run at once
 _sock: socket.socket | None = None
 
 

@@ -70,8 +70,8 @@ def resolve_model() -> str | None:
         return active
     if (d / config.DEFAULT_MODEL_FILE).exists():
         return config.DEFAULT_MODEL_FILE
-    found = sorted(d.glob("*.gguf")) if d.exists() else []
-    found = [p for p in found if not p.name.startswith(("mmproj", "mtp-"))]
+    from model_manager import list_local_models
+    found = list_local_models()
     return found[0].name if found else None
 
 
