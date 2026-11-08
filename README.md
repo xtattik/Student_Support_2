@@ -52,9 +52,12 @@ Highlight a maths problem or worked example and choose **Explain this** — the 
 
 ## For Mac Students (Apple Silicon — M1 or newer)
 
-1. Download **StudentAI2-macOS.zip** from the [Releases page](../../releases) and double-click it
-2. **First time only:** right-click **StudentAI.app** → **Open** → **Open** (the app isn't signed with a paid Apple certificate)
-3. When asked, allow keyboard access: **Open System Settings** → find **Student AI Support** → toggle **on**
+1. Download **StudentAI2-macOS.zip** from the [Releases page](../../releases) and double-click it. Drag **StudentAI.app** into your **Applications** folder.
+2. **First time only — allow the app to open** (it isn't signed with a paid Apple certificate):
+   - Double-click **StudentAI.app**. macOS will say it can't be opened — click **Done** / **OK**.
+   - Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the StudentAI message. Enter your password if asked, then click **Open Anyway** again.
+   - *(On macOS 14 or older you can instead right-click the app → **Open** → **Open**.)*
+3. When asked, allow keyboard access: **Open System Settings** → **Privacy & Security → Accessibility** → toggle **StudentAI** **on**. Quit and reopen the app afterwards.
 4. Choose a model and click **Start Download**
    > Default model location: `~/Library/Application Support/StudentAI/models/`
 5. Use it from the menu-bar icon (top-right). Highlight text → **Ctrl+Shift+`**
@@ -106,26 +109,67 @@ Then launch the app — it will show **"✓ Model found"** and you can click Con
 
 **Answers are garbled, or the app crashes when answering** — Settings → Advanced → turn off **Use graphics chip when available**. (The app also does this automatically if the graphics chip fails to start.)
 
-**Logs** — `error.log` and `llama-server.log` are in the StudentAI data folder (`%LOCALAPPDATA%\StudentAI` on Windows, `~/Library/Application Support/StudentAI` on Mac).
+**Equations show as plain text instead of textbook-style** — on the very first launch the equation drawer prepares its fonts in the background (about 10 seconds). Answers during that time show maths as text; after that, equations are drawn properly.
+
+**Windows: "Windows protected your PC"** — click **More info → Run anyway**. School-managed laptops may block unsigned apps entirely; ask IT to allow `StudentAI.exe`.
+
+### Mac problems
+
+- **"StudentAI is damaged and can't be opened"** — macOS sometimes says this about unsigned apps downloaded from the internet. Open **Terminal** and run the command below (it removes the "downloaded from the internet" flag), then open the app again:
+  ```
+  xattr -cr /Applications/StudentAI.app
+  ```
+- **The app opens but answers never arrive / "AI engine exited"** — macOS may have blocked the AI engine inside the app. Check **System Settings → Privacy & Security** for an **Open Anyway** button mentioning `llama-server`, click it, then try again. The `xattr` command above also fixes this.
+- **The shortcut does nothing** — the keyboard permission is missing or stale. In **System Settings → Privacy & Security → Accessibility**, remove StudentAI (–), add it again (+), and restart the app. This is often needed after installing a new version.
+
+### Reporting a problem
+
+Please send:
+1. What you did and what happened (a screenshot helps).
+2. The log files from the StudentAI data folder:
+   - Windows: `%LOCALAPPDATA%\StudentAI` (paste into the File Explorer address bar)
+   - Mac: `~/Library/Application Support/StudentAI` (Finder → **Go → Go to Folder…**)
+
+   The useful files are `error.log` and `llama-server.log`.
+3. On a Mac, if the app crashed: open the **Console** app → **Crash Reports** → the newest **StudentAI** entry.
 
 ---
 
 ## For Teachers — Building and Releasing
 
 ### Releases
-GitHub Actions builds Windows and Mac versions when you push a version tag:
-```
-git tag v2.0.0
-git push origin v2.0.0
-```
-Both zips are attached to a new Release within ~5 minutes. You can also run the workflow manually from the **Actions** tab to get test builds (downloadable as artifacts) without making a release.
 
-Remember to bump `VERSION` in `config.py` first so "Check for updates" works.
+There are two kinds of build, so students only ever see versions you've deliberately released:
+
+| | How to start it | Where the zips go |
+|---|---|---|
+| **Test build** | **Actions** tab → **Build and Release** → **Run workflow** | The run's page → **Artifacts** (bottom of the page). Not visible to students. |
+| **Release** | Push a version tag (below) | The **Releases** page, with auto-generated release notes |
+
+**To release a new version:**
+1. Bump `VERSION` in `config.py` (e.g. `2.0.1`) so the app's "Check for updates" spots it. Commit and push.
+2. Run a **test build** and check the Windows zip (checklist below).
+3. Tag and push:
+   ```
+   git tag v2.0.1
+   git push origin v2.0.1
+   ```
+4. Both zips appear on the Releases page in ~5–10 minutes (longer if GitHub's Mac runners are busy).
+
+**Test checklist (packaged build):**
+- First launch with no model → setup offers Standard / Lite and downloads to `%LOCALAPPDATA%\StudentAI\models`.
+- First launch with existing models in that folder → setup is skipped and Settings lists them.
+- Extracting over an existing install keeps the hotkey, junior mode and chosen model.
+- Explain / Summarise / Test me all work; a maths explanation shows typeset equations (after the first-run font setup) and clicking one copies a picture.
+- Quitting from the tray icon closes the AI engine too (no `llama-server` left in Task Manager).
+
+The Mac build can't be fully checked without a Mac — test it on one before telling Mac students about a new release.
 
 ### How it works
 - `app.py` — tray app, hotkey, windows (Python + CustomTkinter)
 - `llm_engine.py` — starts llama.cpp's `llama-server` as a background process on `127.0.0.1` when first needed. Uses Vulkan (Windows) / Metal (Mac) when available, falls back to CPU, unloads the model when idle, and runs at below-normal priority.
 - `quiz.py` — the quiz is generated as structured data (guaranteed shape), and marked in code.
+- `markdown_lite.py` / `mathfmt.py` — format answers: bold, bullets, inline maths as symbols, and equations typeset as pictures (matplotlib, loaded only when a result window opens).
 - The llama.cpp version is pinned in `scripts/fetch_llama_server.py` (`LLAMA_BUILD`). Bump it deliberately to pick up new model support.
 
 ### Running from source (Python 3.12+)
