@@ -92,8 +92,21 @@ class OverlayWindow:
 
         self._win.geometry(f"+{px}+{py}")
         self._win.focus_force()
-        self._win.bind("<FocusOut>", lambda _: self.hide())
+        # Tk sends a spurious FocusOut when a button inside the menu is clicked
+        # (seen on Windows / Tk 9), which used to close the menu before the click
+        # registered. So wait a moment, and only close if focus really left us.
+        self._win.bind("<FocusOut>", lambda _: self._win and self._win.after(250, self._close_if_unfocused))
         self._win.bind("<Escape>", lambda _: self.hide())
+
+    def _close_if_unfocused(self) -> None:
+        if self._win is None:
+            return
+        try:
+            focused = self._win.focus_get()
+        except Exception:  # focus_get can raise for foreign/destroyed widgets
+            focused = None
+        if focused is None:
+            self.hide()
 
     def hide(self) -> None:
         if self._win is not None:
